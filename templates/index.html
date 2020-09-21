@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Simple ToDo List</title>
+
+    <link href="https://unpkg.com/tailwindcss@^1.0/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.x.x/dist/alpine.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.10.2/Sortable.min.js" ></script>
+
+  </head>
+
+  <body class="bg-purple-100">
+
+      <div x-data="todos()" x-init="loadTasks()" class="max-w-4xl mx-auto mt-6">
+
+          <div class="text-5xl font-extrabold leading-none tracking-tight text-center">
+              <h1 class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-pink-600 to-purple-900">Simple To-Do List</h1>
+          </div>
+
+          <!-- Task Input -->
+          <div id="task-input" class="mt-4 flex justify-center">
+              <div class="m-4 flex">
+                  <input x-model="taskTitle" class="rounded-l-lg p-4 border-t mr-0 border-b border-l text-gray-800 border-gray-200" placeholder="Task Title"/>
+                  <button @click="if (taskTitle) { addTask() } else { alert('task title cannot be empty')}" class="px-8 rounded-r-lg bg-purple-800 text-gray-100 font-bold p-4 uppercase">Add Task</button>
+              </div>
+          </div>
+
+          <!-- Task List -->
+          <div class="max-w-md mx-auto grid grid-cols-1 gap-2 mt-6">
+              <template x-for="task in tasks">
+                  <div :data-id="task.id" class="p-4 bg-white hover:bg-gray-100 cursor-pointer flex justify-between items-center border rounded-md">
+                      <p :class="{ 'line-through': task.completed }" x-text="task.title"></p>
+                      <div class="flex">
+                          <button @click="updateTask(task)"  class="mr-4" type="button">
+                              <svg x-show="!task.completed" class="h-6 w-6 text-gray-500 hover:text-green-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <svg x-show="task.completed" class="h-6 w-6 text-green-500 hover:text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                              </svg>
+                          </button>
+                          <button @click="deleteTask(task.id)" type="button">
+                              <svg class="h-6 w-6 text-red-400 hover:text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                          </button>
+                      </div>
+                  </div>
+              </template>
+          </div>
+
+      </div>
+
+
+  <script>
+    function todos() {
+        return {
+            tasks: [],
+            taskTitle: '',
+            loadTasks() {
+                let self = this;
+                axios.get('http://127.0.0.1:8000/tasks/')
+                  .then(function (response) {
+                    // handle success
+                    self.tasks = response.data;
+                  })
+                  .catch(function (error) {
+                    // handle error
+                    console.log(error);
+                  });
+            },
+            addTask() {
+                let self = this;
+                let params = new URLSearchParams();
+                params.append('title', this.taskTitle );
+                axios.post('http://127.0.0.1:8000/tasks/create/', params,
+                    {
+                        headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                    }
+                    )
+                    .then(function (response) {
+                        self.tasks.push(response.data);
+                        self.taskTitle = '';
+                    }).catch(function (error) {
+                    // handle error
+                    console.log(error);
+                  });
+            },
+            deleteTask(taskId) {
+                let self = this;
+                axios.post('http://127.0.0.1:8000/tasks/' + taskId +  '/delete/', {},
+                { headers: { 'X-CSRFToken': '{{ csrf_token }}' }})
+                    .then(function (response) {
+                        let removeIndex = self.tasks.map(item => item.id).indexOf(taskId);
+                        ~removeIndex && self.tasks.splice(removeIndex, 1);
+                    }).catch(function (error) {
+                    // handle error
+                    console.log(error);
+                    });
+            },
+            updateTask(task) {
+                let params = new URLSearchParams();
+                if (task.completed) {
+                    params.append('status', 0);
+                } else {
+                    params.append('status', 1);
+                }
+                axios.post('http://127.0.0.1:8000/tasks/' + task.id + '/update/', params,
+                    { headers: { 'X-CSRFToken': '{{ csrf_token }}' }})
+                .then(function (response) {
+                    task.completed = !task.completed;
+                }).catch(function (error) {
+                    // handle error
+                    console.log(error);
+                });
+            },
+        }
+    }
+  </script>
+  <script>
+        const table = document.getElementById('task-list');
+        new Sortable(table, {
+            animation: 150,
+            ghostClass: 'bg-indigo-100',
+            // Element dragging ended
+            onEnd: function (e) {
+                let itemEl = e.item;  // dragged HTMLElement
+                let newIndex = e.newIndex;
+                let taskId = itemEl.getAttribute('data-id');
+                let params = new URLSearchParams();
+                params.append('position', newIndex)
+                let csrfToken = '{{ csrf_token }}';
+                console.log(newIndex);
+                axios.post('http://127.0.0.1:8000/tasks/' + taskId + '/updateOrder/', params,
+                { headers: { 'X-CSRFToken': csrfToken }})
+                  .then(function (response) {
+                    // success
+                    console.log('success')
+                      console.log(response.data)
+
+                  })
+                  .catch(function (error) {
+                    // handle error
+                    console.log(error);
+                  });
+            },
+        });
+    </script>
+
+  </body>
+</html>
